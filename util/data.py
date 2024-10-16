@@ -146,39 +146,76 @@ def get_data(config, val_pc, training=False):
     plt.show()
     plt.savefig('mnist.png')
 
-
   elif config.data == "cifar10":
-    if training or (not config.method == "explicit_density"):
-      print("Normal cifar10 data loading")
-      normalize = transforms.Normalize(mean=datasets_stats["mean"],
-                                       std=datasets_stats["std"])
+      if training or (not config.method == "explicit_density"):
+          print("Normal cifar10 data loading")
+          # Change mean and std to those used for VGG16
+          normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                          std=[0.229, 0.224, 0.225])
 
-      test_tf = transforms.Compose([transforms.ToTensor(), normalize])
-      # ours: {'mean': tensor([0.4914, 0.4822, 0.4465]), 'std': tensor([0.2470, 0.2435, 0.2616])}
+          test_tf = transforms.Compose([
+              transforms.Resize((224, 224)),  # Resize to 224x224
+              transforms.ToTensor(),
+              normalize,
+          ])
 
-      if training:
-        train_tf = transforms.Compose([
-          transforms.RandomCrop(32, padding=4),
-          transforms.RandomHorizontalFlip(),
-          transforms.ToTensor(),
-          normalize,
-        ])
+          if training:
+              train_tf = transforms.Compose([
+                  transforms.Resize((224, 224)),  # Resize to 224x224
+                  transforms.RandomCrop(224, padding=4),
+                  transforms.RandomHorizontalFlip(),
+                  transforms.ToTensor(),
+                  normalize,
+              ])
+          else:
+              train_tf = test_tf
       else:
-        train_tf = test_tf
-    else:
-      print("Different Cifar10 preprocessing for residual flows")
-      # as defined in residual flows github
-      test_tf = transforms.Compose([
-        transforms.Resize(32),
-        transforms.ToTensor(),
-        add_noise,
-      ])
-      train_tf = test_tf  # using pretrained density model
+          print("Different Cifar10 preprocessing for residual flows")
+          # as defined in residual flows github
+          test_tf = transforms.Compose([
+              transforms.Resize((224, 224)),  # Resize to 224x224
+              transforms.ToTensor(),
+              add_noise,  # Assuming add_noise is a valid transformation
+          ])
+          train_tf = test_tf  # using pretrained density model
 
-    train_data = datasets.CIFAR10(root=config.data_root, train=True, download=False,
-                                  transform=train_tf)
-    test_data = datasets.CIFAR10(root=config.data_root, train=False, download=False,
-                                 transform=test_tf)
+      train_data = datasets.CIFAR10(root=config.data_root, train=True, download=False,
+                                    transform=train_tf)
+      test_data = datasets.CIFAR10(root=config.data_root, train=False, download=False,
+                                    transform=test_tf)
+
+  # elif config.data == "cifar10":
+  #   if training or (not config.method == "explicit_density"):
+  #     print("Normal cifar10 data loading")
+  #     normalize = transforms.Normalize(mean=datasets_stats["mean"],
+  #                                      std=datasets_stats["std"])
+
+  #     test_tf = transforms.Compose([transforms.ToTensor(), normalize])
+  #     # ours: {'mean': tensor([0.4914, 0.4822, 0.4465]), 'std': tensor([0.2470, 0.2435, 0.2616])}
+
+  #     if training:
+  #       train_tf = transforms.Compose([
+  #         transforms.RandomCrop(32, padding=4),
+  #         transforms.RandomHorizontalFlip(),
+  #         transforms.ToTensor(),
+  #         normalize,
+  #       ])
+  #     else:
+  #       train_tf = test_tf
+  #   else:
+  #     print("Different Cifar10 preprocessing for residual flows")
+  #     # as defined in residual flows github
+  #     test_tf = transforms.Compose([
+  #       transforms.Resize(32),
+  #       transforms.ToTensor(),
+  #       add_noise,
+  #     ])
+  #     train_tf = test_tf  # using pretrained density model
+
+  #   train_data = datasets.CIFAR10(root=config.data_root, train=True, download=False,
+  #                                 transform=train_tf)
+  #   test_data = datasets.CIFAR10(root=config.data_root, train=False, download=False,
+  #                                transform=test_tf)
 
   elif config.data == "cifar100":
     if training or (not config.method == "explicit_density"):

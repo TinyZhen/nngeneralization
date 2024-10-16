@@ -7,13 +7,15 @@ args = argparse.ArgumentParser(allow_abbrev=False)
 args.add_argument("--seed", type=int, default=4)
 args.add_argument("--gpu", type=int, default=3)
 args.add_argument("--radius_mult", type=float, default=3.0)
-
+args.add_argument("--file",type=str,default="")
+args.add_argument("--ts",type=float,default=0)
 args = args.parse_args()
 
-# seeds = [random.randint(0, 2**32 - 1) for _ in range(5)]
-# seeds = [511232505]
-seeds = [3442538909]
-# seeds = [386431994, 929997039, 3442538909, 4259898581]
+seeds = [random.randint(0, 2**32 - 1)]
+# seeds = [4259898581]
+# seeds = [3442538909]
+# seeds = [386431994]
+# seeds = [386431994, 929997039, 4259898581,511232505]
 
 train_model = True
 precomp = True
@@ -28,9 +30,9 @@ for i in seeds:
 
   if train_model:
     train_model_cmd = "export CUDA_VISIBLE_DEVICES=%d && python -m scripts.train_models --data " \
-                      "cifar10 --model mlp --model_args 8 8  --seed %d --lr 0.0001 --epochs 100 --gpu %d " \
-                      "--cuda --batch_size 128 --workers 8 %s --mode 1 --seed %d"
-    train_model_cmd = train_model_cmd % (args.gpu, args.seed,args.gpu, norm_data_str,i)
+                      "cifar10 --model vgg --seed %d --model_args 1 --file %s --lr 0.1 --epochs 200 --gpu %d " \
+                      "--cuda --batch_size 32 --workers 8 %s --mode 1 --ts %f"
+    train_model_cmd = train_model_cmd % (args.gpu, i, args.file, args.gpu, norm_data_str, args.ts)
 
     print("Executing training %s" % train_model_cmd)
     stdout.flush()
@@ -38,14 +40,14 @@ for i in seeds:
 
 
 
-      # train_model_cmd = "export CUDA_VISIBLE_DEVICES=%d && python -m scripts.train_models --data " \
-      #                   "cifar10 --model mlp --model_args 8 8 --seed %d --lr 0.0001 --epochs 100 --gpu %d " \
-      #                   "--cuda --batch_size 128 --workers 8 %s --mode 2 --seed %d"
-      # train_model_cmd = train_model_cmd % (args.gpu, args.seed,args.gpu, norm_data_str,i)
+    # train_model_cmd = "export CUDA_VISIBLE_DEVICES=%d && python -m scripts.train_models --data " \
+    #                   "cifar10 --model vgg --seed %d --model_args 1 --file %s --lr 0.1 --epochs 200 --gpu %d " \
+    #                   "--cuda --batch_size 32 --workers 8 %s --mode 2 --ts %f"
+    # train_model_cmd = train_model_cmd % (args.gpu, i, args.file, args.gpu, norm_data_str, args.ts)
 
-      # print("Executing training %s" % train_model_cmd)
-      # stdout.flush()
-      # os.system(train_model_cmd)
+    # print("Executing training %s" % train_model_cmd)
+    # stdout.flush()
+    # os.system(train_model_cmd)
 
 # if precomp:
 #   precomp_str = "export CUDA_VISIBLE_DEVICES=%d && python -m scripts.two_moons --data mnist " \

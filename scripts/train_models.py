@@ -13,7 +13,7 @@ from functools import partial
 from scripts.global_constants import *
 import matplotlib.pyplot as plt
 import arch
-
+from arch.vgg import vgg16_bn
 
 norm_data_str = " --two_moons_norm_data "
 search_ps = "1.0 2.0 4.0 6.0 8.0 12.0 16.0 24.0 32.0 48.0 64.0"
@@ -45,13 +45,15 @@ config.add_argument("--val_pc", type=float, default=0.15)
 
 config.add_argument("--two_moons_norm_data", default=False, action="store_true")
 config.add_argument("--mode",type=int,default=1)
+config.add_argument("--file",type=str,default="")
+config.add_argument("--ts",type= float, default=0)
 config = config.parse_args()
 
 if not osp.exists(osp.join(config.data_root, "%s_stats.pytorch" % config.data)):
   compute_dataset_stats(config)
 
 save_fname = osp.join(config.models_root,
-                      "%s_%d_%s_%s.pytorch" % (config.data, config.seed, config.model, '_'.join(map(str, config.model_args))))
+                      "%s_%d_%s_%s_%s.pytorch" % (config.data, config.seed, config.model, '_'.join(map(str, config.model_args)),config.file))
 
 
 set_seed(config.seed)
@@ -66,7 +68,7 @@ elif config.mode ==2:
 elif config.mode == 3:
     path = "delete"
 
-log_dir = os.path.join('log', path, 'cifar10', str(config.seed),str(config.model_args))
+log_dir = os.path.join('log', path, 'cifar10', str(config.seed),str(config.model_args),config.file)
 os.makedirs(log_dir, exist_ok=True)
 log_file = os.path.join(log_dir, f'{config.data}_{config.model}_loss.txt')
 
@@ -93,8 +95,9 @@ if config.data == "cifar10" or config.data == "cifar100":
 #     model = arch.resnet50model(num_classes)
 
 # if config.data == "mnist" and config.model == "mlp":
-  model = arch.MLP(layer_szs=config.model_args, num_classes=num_classes, in_feats=(32 * 32 * 3))
-
+#   model = arch.MLP(layer_szs=config.model_args, num_classes=num_classes, in_feats=(32 * 32 * 3))
+    model = vgg16_bn(10)
+    print(model)
 # el
 # if config.data == "two_moons" and config.model == "mlp":
 #   model = arch.MLP(layer_szs=config.model_args, num_classes=num_classes, in_feats=2)
@@ -108,21 +111,23 @@ else:
 
 accs = []
 next_ep = 0
-def count_activation_frequency(model, loader):
+def count_activation_frequency(model, loader,ts=0.2):
     for param in model.parameters():
         param.requires_grad = True
     activations = {}
+    weights = {} 
     for name, layer in model.named_modules():
-        if isinstance(layer, (torch.nn.Conv2d, torch.nn.Linear)):
+        if isinstance(layer, (torch.nn.Linear)):
             activations[name] = np.zeros(layer.weight.shape[0])
+            weights[name] = layer.weight.detach().cpu().numpy()
 
     def forward_hook(module, input, output, name):
-        if isinstance(module, (torch.nn.Conv2d, torch.nn.Linear)):
-            activations[name] += (output.detach().cpu().numpy() > 0).sum(axis=0)
+        if isinstance(module, ( torch.nn.Linear)):
+            activations[name] += (output.detach().cpu().numpy() > ts).sum(axis=0)
 
     hooks = []
     for name, layer in model.named_modules():
-        if isinstance(layer, (torch.nn.Conv2d, torch.nn.Linear)):
+        if isinstance(layer, ( torch.nn.Linear)):
             hooks.append(layer.register_forward_hook(partial(forward_hook, name=name)))
 
     model.eval()
@@ -138,7 +143,17 @@ def count_activation_frequency(model, loader):
         activations[key] = value / len(loader.dataset)
         # log_and_print(f'AASR: {activations[key]}')
 
-
+    for name, weight in weights.items():
+        print(f'Layer: {name}, Weights:\n {weight}')
+    for name, activation in activations.items():
+        plt.figure(figsize=(10, 5))
+        plt.hist(activation, bins=30, alpha=0.7, color='blue', edgecolor='black')
+        plt.title(f'Activation Histogram for Layer: {name}')
+        plt.xlabel('Activation Value')
+        plt.ylabel('Frequency')
+        plt.grid(axis='y')
+        plt.show()
+        plt.savefig(f"histgraph_{datetime.now()}.png")
     return activations
 
 def count_activation_frequency_first_layer(model, loader):
@@ -316,7 +331,7 @@ def freeze_nodes_second_layer(model, mem):
         
         if layer_name in mem and len(mem[layer_name]) > 0:
             
-            if layer_count == 1:
+            if layer_count == 1 or layer_count == 2 or layer_count ==3:
                 for idx in mem[layer_name]:
                     param.data[idx] = param.data[idx].detach().clone().requires_grad_(False)
                 break  
@@ -360,17 +375,17 @@ def generate_graphs(config, model, train_loader, val_loader, activations):
     json.dump(aasr, f)
 
   test_code_cmd = "export CUDA_VISIBLE_DEVICES=%d && python -m scripts.in_distribution --data " \
-    "cifar10 --data_root %s --seed %d --model mlp --cuda --mode %d --model_args %s --active activations.json subfunctions --search_ps 1.0 " \
-    "--precompute --precompute_p_i 0 --pattern_batch_sz 500 " \
-    % (config.gpu,CIFAR_DATA_ROOT,config.seed,config.mode, ' '.join(map(str, config.model_args))) 
+    "cifar10 --data_root %s --seed %d --model vgg --cuda --mode %d --model_args %s --active activations.json --file %s subfunctions --search_ps 1.0 " \
+    "--precompute --precompute_p_i 0 --pattern_batch_sz 128 " \
+    % (config.gpu,CIFAR_DATA_ROOT,config.seed,config.mode, ' '.join(map(str, config.model_args)),config.file) 
   
                     
   print(test_code_cmd)
   os.system(test_code_cmd)
   test_code_cmd ="export CUDA_VISIBLE_DEVICES=%d && python -m scripts.in_distribution --data "\
-    "cifar10 --data_root %s --seed %d --model mlp --cuda --mode %d --model_args %s --active activations.json subfunctions --search_ps 1.0 " \
-    "--pattern_batch_sz 500 " \
-    %(config.gpu,CIFAR_DATA_ROOT,config.seed,config.mode, ' '.join(map(str, config.model_args))) 
+    "cifar10 --data_root %s --seed %d --model vgg --cuda --mode %d --model_args %s --active activations.json --file %s subfunctions --search_ps 1.0 " \
+    "--pattern_batch_sz 128 " \
+    %(config.gpu,CIFAR_DATA_ROOT,config.seed,config.mode, ' '.join(map(str, config.model_args)),config.file) 
   
   print(test_code_cmd)
   os.system(test_code_cmd)
@@ -454,7 +469,9 @@ for ep in range(next_ep, config.epochs):
         opt.step()
 
         epoch_train_loss += loss.item()
-
+        if batch_i % 100 == 99:    # Print every 100 mini-batches
+            print(f'[Epoch {ep + 1}, Batch {batch_i + 1}] Loss: {loss.item() / 100:.4f}')
+            running_loss = 0.0
     # Compute the average loss over all batches in the epoch
     epoch_train_loss /= len(train_loader)
     train_losses.append(epoch_train_loss)
@@ -483,20 +500,21 @@ for ep in range(next_ep, config.epochs):
     # # freeze nodes every 10 epoch
     if (ep+1) % 1 == 0:
         if config.mode ==1: 
-            activations = count_activation_frequency(model, train_loader)
+            activations = count_activation_frequency(model, train_loader,config.ts)
             print(activations)
             generate_graphs(config, model, train_loader, val_loader,activations)
 
         elif config.mode ==2: 
-            activations = count_activation_frequency(model, train_loader)
+            activations = count_activation_frequency(model, train_loader,config.ts)
             mem = mark_nodes_for_reinitialization(activations, 0.5)
-            model = freeze_nodes_second_layer(model, mem)
-            acc = evaluate(config, model, test_loader)
-            final_acc = evaluate(config, model, test_loader)
-            torch.save({"model": model, "acc": final_acc, "accs": accs,
-                "next_ep": ep, "opt": opt.state_dict(), "sched": sched.state_dict()}, save_fname)
-            print(final_acc)
-            accs.append((ep, final_acc))
+            if (ep+1) % 10 == 0:
+                model = freeze_nodes_second_layer(model, mem)
+                acc = evaluate(config, model, test_loader)
+                final_acc = evaluate(config, model, test_loader)
+                torch.save({"model": model, "acc": final_acc, "accs": accs,
+                    "next_ep": ep, "opt": opt.state_dict(), "sched": sched.state_dict()}, save_fname)
+                print(final_acc)
+                accs.append((ep, final_acc))
             generate_graphs(config, model, train_loader, val_loader,activations)
 
         elif config.mode ==3: 

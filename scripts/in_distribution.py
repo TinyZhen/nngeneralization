@@ -36,6 +36,7 @@ def in_distribution():
   config.add_argument("--active",type=str,default="")
   config.add_argument("--threshold_divs", type=int, default=1000)
   config.add_argument("--mode",type=int, default=1)
+  config.add_argument("--file",type=str,default="")
   subparsers = config.add_subparsers(dest="method")
 
   subfunctions_config = subparsers.add_parser("subfunctions")
@@ -102,17 +103,17 @@ def in_distribution():
     print_first_labels(loader)  # sanity
 
   model = [
-    torch.load(osp.join(config.models_root, "%s_%d_%s_%s.pytorch" % (config.data, s, config.model, '_'.join(map(str, config.model_args)))))[
+    torch.load(osp.join(config.models_root, "%s_%d_%s_%s_%s.pytorch" % (config.data, s, config.model, '_'.join(map(str, config.model_args)),config.file)))[
       "model"].eval() for s in config.seed]
   acc = [
-    torch.load(osp.join(config.models_root, "%s_%d_%s_%s.pytorch" % (config.data, s, config.model, '_'.join(map(str, config.model_args)))))[
+    torch.load(osp.join(config.models_root, "%s_%d_%s_%s_%s.pytorch" % (config.data, s, config.model, '_'.join(map(str, config.model_args)),config.file)))[
       "acc"] for s in config.seed]
   if len(config.seed) == 1:
     config.seed = config.seed[0]
     model = model[0]
     acc = acc[0]
     print("original acc: %s" % torch.load(
-      osp.join(config.models_root, "%s_%d_%s_%s.pytorch" % (config.data, config.seed, config.model, '_'.join(map(str, config.model_args)))))[
+      osp.join(config.models_root, "%s_%d_%s_%s_%s.pytorch" % (config.data, config.seed, config.model, '_'.join(map(str, config.model_args)),config.file)))[
       "acc"])
 
   # Store precomputations if not stored already and find val data hyperparameters if any. Also
@@ -126,7 +127,7 @@ def in_distribution():
   elif config.mode == 3:
      path = "delete"
 
-  log_dir = os.path.join('log', path, 'cifar10', str(config.seed),str(config.model_args))
+  log_dir = os.path.join('log', path, 'cifar10', str(config.seed),str(config.model_args),config.file)
   os.makedirs(log_dir, exist_ok=True)
   log_file = os.path.join(log_dir, f'{config.data}_{config.model}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.txt')
 

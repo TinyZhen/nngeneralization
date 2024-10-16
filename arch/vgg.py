@@ -13,26 +13,34 @@ cfg = {
 
 
 class VGG(nn.Module):
-  def __init__(self, features, num_class):
+  def __init__(self, features, num_class=10):
     super().__init__()
     self.features = features
 
     self.classifier = nn.Sequential(
-      nn.Linear(512, 4096),
+      nn.Linear(25088, 4096),
+      nn.BatchNorm1d(4096),
       nn.ReLU(inplace=True),
       nn.Dropout(),
       nn.Linear(4096, 4096),
+      nn.BatchNorm1d(4096),
       nn.ReLU(inplace=True),
       nn.Dropout(),
       nn.Linear(4096, num_class)
+      
     )
 
   def forward(self, x):
-    output = self.features(x)
-    output = output.view(output.size()[0], -1)
-    output = self.classifier(output)
-
-    return output
+      # print(f'Input shape: {x.shape}')  # Print input shape
+      x = self.features(x)
+      # print(f'After features shape: {x.shape}')  # Print after features
+      
+      x = x.view(x.size(0), -1)  # Flatten for the classifier
+      # print(f'After flatten shape: {x.shape}')  # Print after flatten
+      x = self.classifier(x)
+      # print(f'After classifier shape: {x.shape}')  # Print after classifier
+      
+      return x
 
 
 def make_layers(cfg, batch_norm=False):
