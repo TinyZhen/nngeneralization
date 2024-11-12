@@ -137,3 +137,6 @@ CIFAR/
 resflows/
 activation.json
 /scripts/slurm/test_code.py
+
+*.png
+*.pytorch

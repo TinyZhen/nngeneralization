@@ -30,7 +30,7 @@ def compute_dataset_stats(config):
                                   transform=transforms.ToTensor())
 
   elif config.data == "cifar100":
-    train_data = datasets.CIFAR100(root=config.data_root, train=True, download=False,
+    train_data = datasets.CIFAR100(root=config.data_root, train=True, download=True,
                                    transform=transforms.ToTensor())
   elif config.data == "svhn":
     train_data = datasets.SVHN(root=config.data_root, split="train", download=False,
@@ -136,22 +136,22 @@ def get_data(config, val_pc, training=False):
     test_data = datasets.ImageFolder(valdir, test_tf)
 
   elif config.data == "mnist":
+    transform = transforms.Compose([
+        transforms.Resize((32, 32)),  # Resize to 32x32
+        transforms.ToTensor(),         # Convert to tensor
+    ])
+
     train_data = datasets.MNIST(config.data_root, train=True,
-                                download=False,transform=transform)
+                                 download=True, transform=transform)
     test_data = datasets.MNIST(config.data_root, train=False,
-                               download=False,transform=transform)
-    image, label = train_data[0]
-    plt.imshow(image.squeeze(), cmap='gray')
-    plt.title(f'Label: {label}')
-    plt.show()
-    plt.savefig('mnist.png')
+                                download=True, transform=transform)
 
   elif config.data == "cifar10":
       if training or (not config.method == "explicit_density"):
           print("Normal cifar10 data loading")
           # Change mean and std to those used for VGG16
-          normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                          std=[0.229, 0.224, 0.225])
+          normalize = transforms.Normalize(mean=[0.4914, 0.4822, 0.4465],
+                                          std=[0.2023, 0.1994, 0.2010])
 
           test_tf = transforms.Compose([
               transforms.Resize((224, 224)),  # Resize to 224x224
@@ -217,38 +217,44 @@ def get_data(config, val_pc, training=False):
   #   test_data = datasets.CIFAR10(root=config.data_root, train=False, download=False,
   #                                transform=test_tf)
 
+
   elif config.data == "cifar100":
-    if training or (not config.method == "explicit_density"):
-      print("Normal cifar100 data loading")
-      normalize = transforms.Normalize(mean=datasets_stats["mean"],
-                                       std=datasets_stats["std"])
+      if training or (not config.method == "explicit_density"):
+          print("Normal cifar100 data loading")
+          normalize = transforms.Normalize(mean=datasets_stats["mean"],
+                                          std=datasets_stats["std"])
 
-      test_tf = transforms.Compose([transforms.ToTensor(), normalize])
-      # ours: {'mean': tensor([0.5071, 0.4865, 0.4409]), 'std': tensor([0.2673, 0.2564, 0.2762])}
+          # Resize images to 224x224 for VGG16
+          test_tf = transforms.Compose([
+              transforms.Resize(224),  # Resize to 224x224 for VGG16
+              transforms.ToTensor(),
+              normalize
+          ])
 
-      if training:
-        train_tf = transforms.Compose([
-          transforms.RandomCrop(32, padding=4),
-          transforms.RandomHorizontalFlip(),
-          transforms.RandomRotation(15),
-          transforms.ToTensor(),
-          normalize,
-        ])
+          if training:
+              train_tf = transforms.Compose([
+                  transforms.RandomCrop(32, padding=4),  # Still crop and pad at 32x32 for augmentation
+                  transforms.RandomHorizontalFlip(),
+                  transforms.RandomRotation(15),
+                  transforms.Resize(224),  # Resize to 224x224 after augmentation
+                  transforms.ToTensor(),
+                  normalize
+              ])
+          else:
+              train_tf = test_tf
       else:
-        train_tf = test_tf
-    else:
-      print("Different Cifar100 preprocessing for residual flows")
-      test_tf = transforms.Compose([
-        transforms.Resize(32),
-        transforms.ToTensor(),
-        add_noise,
-      ])
-      train_tf = test_tf  # using pretrained density model
+          print("Different Cifar100 preprocessing for residual flows")
+          test_tf = transforms.Compose([
+              transforms.Resize(32),  # Keep this if using a different model for residual flows
+              transforms.ToTensor(),
+              add_noise,
+          ])
+          train_tf = test_tf  # using pretrained density model
 
-    train_data = datasets.CIFAR100(root=config.data_root, train=True, download=False,
-                                   transform=train_tf)
-    test_data = datasets.CIFAR100(root=config.data_root, train=False, download=False,
-                                  transform=test_tf)
+      train_data = datasets.CIFAR100(root=config.data_root, train=True, download=False,
+                                    transform=train_tf)
+      test_data = datasets.CIFAR100(root=config.data_root, train=False, download=False,
+                                    transform=test_tf)
 
   elif config.data == "two_moons":
     num_train_samples = 5000
@@ -307,7 +313,7 @@ def get_data(config, val_pc, training=False):
   val_loader = torch.utils.data.DataLoader(val_data, batch_size=config.batch_size,
                                            shuffle=False, num_workers=config.workers,
                                            pin_memory=True)
-  test_loader = torch.utils.data.DataLoader(test_data, batch_size=config.batch_size,
+  test_loader = torch.utils.data.DataLoader(test_data, batch_size=config.batch_size//4,
                                             shuffle=False, num_workers=config.workers,
                                             pin_memory=True)
 

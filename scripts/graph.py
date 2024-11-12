@@ -12,6 +12,8 @@ args = argparse.ArgumentParser(allow_abbrev=False)
 args.add_argument("--sz", type=int, default=0)
 args.add_argument("--file", type=str, default="")
 args.add_argument("--infile",type=str,default="")
+args.add_argument("--dir",type=str,default="")
+
 args = args.parse_args()
 
 
@@ -69,8 +71,8 @@ def get_timestamp_from_filename(filename):
     return match.group(1) if match else None
 
 def extract_aasr_3(df):
-    aasr_df = pd.DataFrame(df['aasr'].values.tolist(), index=df.index, columns=['aasr_1', 'aasr_2', 'aasr_3', 'aasr_4','aasr_5'])
-    std_df = pd.DataFrame(df['std'].values.tolist(), index=df.index, columns=['std_1', 'std_2', 'std_3', 'std_4','std_5'])
+    aasr_df = pd.DataFrame(df['aasr'].values.tolist(), index=df.index, columns=['aasr_1', 'aasr_2', 'aasr_3'])
+    std_df = pd.DataFrame(df['std'].values.tolist(), index=df.index, columns=['std_1', 'std_2', 'std_3'])
     return aasr_df,std_df
 
 def extract_aasr_1(df):
@@ -92,16 +94,16 @@ def save_file(df,train_loss,test_loss,i,mode):
     last_test_loss = test_loss[-1]
     train_loss.append(last_train_loss)
     test_loss.append(last_test_loss)
-    combined_df['train loss'] = train_loss
-    combined_df['test loss'] = test_loss
+    combined_df['train loss'] = [x / 391 for x in train_loss]
+    combined_df['test loss'] = [x / 79 for x in test_loss]
     combined_df['test-train'] = np.array(test_loss)-np.array(train_loss)
     combined_df.to_csv(f'dataframe{i}_{mode}_{sz}x{sz}_{combined_df.loc[1,"seed"]}_{args.file}.csv')
     return combined_df
 
 
-base_root = "log/base/cifar10/"
+base_root = "log/base/cifar100/"
 
-free_root = "log/freeze/cifar10/"
+free_root = "log/freeze/cifar100/"
 
 base_dirs = {}
 try:
@@ -112,7 +114,7 @@ try:
         i = 0
         for dir_name in dirs:
             # if dir_name == '179665917':
-                    dir_path = os.path.join(subdir, dir_name,f"[{sz}, {sz}, {sz}, {sz}]",args.infile)
+                    dir_path = os.path.join(subdir, dir_name,f"[{sz}]",args.infile)
                     base_dirs[dir_name] = dir_path
                     # base_dirs = subdir
                     if not os.path.exists(dir_path):
@@ -126,15 +128,16 @@ try:
             if dir_name in base_dirs:
                 # if dir_name == '179665917':
                     base_dir_path = base_dirs[dir_name]
-                    free_dir_path = os.path.join(subdir, dir_name,f"[{sz}, {sz}, {sz}, {sz}]",args.infile)
+                    free_dir_path = os.path.join(subdir, dir_name,f"[{sz}]",args.infile)
                     if not os.path.exists(free_dir_path):
                         continue
-                    print(base_dir_path)
-                    print(free_dir_path)
+                    # print(base_dir_path)
+                    # print(free_dir_path)
 
                     base_files = [os.path.join(base_dir_path, f) for f in os.listdir(base_dir_path) if os.path.isfile(os.path.join(base_dir_path, f))]
                     free_files = [os.path.join(free_dir_path, f) for f in os.listdir(free_dir_path) if os.path.isfile(os.path.join(free_dir_path, f))]
-
+                    # print(f'base: {base_files}')
+                    # print(f'freeze: {free_files}')
                     if base_files:
 
                         base_dfs = []
@@ -146,7 +149,7 @@ try:
                         base_train_loss = []
                         base_test_loss = [] 
                         for file in base_files:
-                            # print(file)
+                            print(file)
                             if "loss" in file:
                                 with open(file, 'r') as file:
                                     for line in file:
@@ -157,7 +160,7 @@ try:
                                                         base_train_loss.append(float(match.group(1)))
                                                         base_test_loss.append(float(match.group(2)))
                             else:
-                                match = re.search(r'cifar10_mlp_(\d{4}\d{2}\d{2}_\d{2}\d{2}\d{2}).txt', file)
+                                match = re.search(r'cifar100_wrn_(\d{4}\d{2}\d{2}_\d{2}\d{2}\d{2}).txt', file)
                                 if match:
                                     timestamp_str = match.group(1)
                                     df = extract_info_from_log(file)
@@ -182,7 +185,7 @@ try:
                                                         free_test_loss.append(float(match.group(2)))
                                 
                             else:
-                                match = re.search(r'cifar10_mlp_(\d{4}\d{2}\d{2}_\d{2}\d{2}\d{2}).txt', file)
+                                match = re.search(r'cifar100_wrn_(\d{4}\d{2}\d{2}_\d{2}\d{2}\d{2}).txt', file)
                                 if match:
                                     timestamp_str = match.group(1)
                                     df = extract_info_from_log(file) 
@@ -205,13 +208,13 @@ try:
                         base_writer = pd.ExcelWriter(f'cor_dataframe_base_{sz}x{sz}_{base_combined_df.loc[1,"seed"]}_{args.file}.xlsx', engine='xlsxwriter')
                         # base_aasr_df, base_std_df = extract_aasr_3(base_combined_df)
                         # free_aasr_df,free_std_df = extract_aasr_3(free_combined_df)
-                        base_aasr_df, base_std_df = extract_aasr_3(base_combined_df)
-                        free_aasr_df,free_std_df = extract_aasr_3(free_combined_df)
+                        base_aasr_df, base_std_df = extract_aasr_1(base_combined_df)
+                        free_aasr_df,free_std_df = extract_aasr_1(free_combined_df)
 
                         base_combined_df = base_combined_df.drop(columns=['aasr','std'])
                         free_combined_df = free_combined_df.drop(columns=['aasr','std'])
                         # print(base_std_df.head)
-                        print(base_aasr_df.head)
+                        # print(base_aasr_df.head)
                         
                         cor_base_df = pd.concat([base_combined_df, base_aasr_df,base_std_df],axis=1)
 
@@ -252,7 +255,7 @@ try:
                         colors_1 = ['blue', 'red', 'green', 'pink','grey']  # Base colors
                         colors_2 = ['orange', 'purple', 'yellow', 'cyan','brown']  # Freeze colors
 
-                        for i in range(1, 6):
+                        for i in range(1, 2):
                             # Plot for Base AASR
                             color = colors_1[i-1]
                             ax[1,0].plot(base_combined_df.index, 

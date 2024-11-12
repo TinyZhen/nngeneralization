@@ -2,6 +2,8 @@
 # /models/vgg.py
 
 import torch.nn as nn
+from torchvision import models
+
 
 cfg = {
   'A': [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
@@ -26,6 +28,14 @@ class VGG(nn.Module):
       nn.BatchNorm1d(4096),
       nn.ReLU(inplace=True),
       nn.Dropout(),
+      # nn.Linear(4096, 4096),
+      # nn.BatchNorm1d(4096),
+      # nn.ReLU(inplace=True),
+      # nn.Dropout(),
+      # nn.Linear(4096, 4096),
+      # nn.BatchNorm1d(4096),
+      # nn.ReLU(inplace=True),
+      # nn.Dropout(),
       nn.Linear(4096, num_class)
       
     )
@@ -77,3 +87,35 @@ def vgg16_bn(num_class):
 
 def vgg19_bn(num_class):
   return VGG(make_layers(cfg['E'], batch_norm=True), num_class)
+
+def freeze_vgg_features(model):
+    for param in model.features.parameters():
+        param.requires_grad = False
+
+def load_pretrained_vgg16(model,num_classes):
+    
+
+  # Modify the classifier by extending it with two extra layers
+  new_classifier = nn.Sequential(
+      nn.Linear(25088, 4096),  # Original layer (VGG16 has this as its final FC layer)
+      nn.BatchNorm1d(4096),
+      nn.ReLU(inplace=True),
+      nn.Dropout(),
+      nn.Linear(4096, 4096),
+      nn.BatchNorm1d(4096),
+      nn.ReLU(inplace=True),
+      nn.Dropout(),
+      # nn.Linear(2048, 2048),
+      # nn.BatchNorm1d(2048),
+      # nn.ReLU(inplace=True),
+      # nn.Dropout(),
+      # nn.Linear(2048, 2048),  
+      # nn.BatchNorm1d(2048),
+      # nn.ReLU(inplace=True),
+      # nn.Dropout(),
+      nn.Linear(4096, num_classes),  # Add the final layer for 100 classes (CIFAR-100)
+  )
+
+# Assign the new classifier to the model
+  model.classifier = new_classifier
+  return model
